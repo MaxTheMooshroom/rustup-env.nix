@@ -27,11 +27,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785492531,
-        "narHash": "sha256-OByOU2/5NmYiOnKLwFgFRwyxZfd1d9iKy4BSlHazn+E=",
+        "lastModified": 1789216974,
+        "narHash": "sha256-jPsr3zMsjNvnnmt8f2u55A5rCpNgFJaOGJ4qRJ5/z4k=",
         "owner": "MaxTheMooshroom",
         "repo": "mlib.nix",
-        "rev": "a6627faec93e5ed26b7971d693ebff68519a2ebd",
+        "rev": "0475bfc9cf6984b80be00b0fe73320c0b660f129",
         "type": "github"
       },
       "original": {

@@ -1,13 +1,13 @@
-{ lib, inputs, options, ... }:
+{ lib, mlib, inputs, options, ... }:
 {
   config.flake.overlays.nixpkgs =
     lib.composeManyExtensions
       [
-        (import ../../overlays/nixpkgs/call-package-function.nix)
         (import ../../overlays/nixpkgs/rustup.nix)
         (
           final: prev:
           {
+            callPackageFunction = mlib.callPackageFunctionWith final;
             rust-overlay = inputs.rust-overlay.outputs;
             mkRustBin = final.rust-overlay.lib.mkRustBin {} final;
           }
