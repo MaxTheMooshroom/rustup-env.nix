@@ -317,7 +317,8 @@ lib.makeOverridable
                             /* bash */
                             ''
                               wrapProgram $out/bin/rustup \
-                                --set RUSTUP_HOME "${self.finalPackage}"
+                                --set RUSTUP_HOME "${self.finalPackage}" \
+                                --set RUSTUP_AUTO_INSTALL "0"
                             ''
                             ;
 
