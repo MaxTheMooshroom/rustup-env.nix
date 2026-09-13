@@ -3,34 +3,25 @@
 
   stdenvNoCC,
   makeBinaryWrapper,
-  symlinkJoin,
 
   formats,
 
   mkRustBin,
   rust-toolchain-manifests,
+
+  callPackageSet,
 }:
 with builtins;
 lib.makeOverridable
   (
     {
+      # TODO: Add cross-targets
+
       #?  toolchains ::
       #?    {
-      #?      stable?   :: toolchain-versioned,
-      #?      beta?     :: toolchain-dated,
-      #?      nightly?  :: toolchain-dated,
-      #?    };
-      #?
-      #?  toolchain-versioned ::
-      #?    {
-      #?      [<semver>] :: toolchain-config,
-      #?      latest? :: toolchain-config,
-      #?    };
-      #?
-      #?  toolchain-dated ::
-      #?    {
-      #?      [<date-ymd>] :: toolchain-config,
-      #?      latest? :: toolchain-config,
+      #?      stable?   :: { [<semver>... | latest]? :: toolchain-config, },
+      #?      beta?     :: { [<date-ymd>... | latest]? :: toolchain-config, },
+      #?      nightly?  :: { [<date-ymd>... | latest]? :: toolchain-config, },
       #?    };
       #?
       #?  toolchain-config ::
@@ -177,15 +168,19 @@ lib.makeOverridable
                   modify-env =
                     /* bash */
                     ''
-                      # begin ${self.qualified-target}
+                      # === begin ${self.qualified-target} ===
                       ln -s "${self.sha256}" "$out/update-hashes/${self.qualified-target}"
 
                       cp -r --no-preserve=mode,ownership "${self.toolchain.drv}" "${self.toolchain.path}"
+                      for bin in "${self.toolchain.path}"/bin/*; do
+                        [[ -L "$bin" ]] && continue
+                        chmod +x $bin
+                      done
 
                       printf "3" > "${self.toolchain.path}/lib/rustlib/rust-installer-version"
                       ln -s "${self.manifest.path}" "${self.toolchain.path}/lib/rustlib/multirust-channel-manifest.toml"
                       ln -s "${self.components}" "${self.toolchain.path}/lib/rustlib/multirust-config.toml"
-                      # end ${self.qualified-target}
+                      # === end ${self.qualified-target} ===
 
                     ''
                     ;
@@ -201,7 +196,8 @@ lib.makeOverridable
           minimal = [ "rustc" "rust-std" "cargo" ];
 
           default =
-            [ "rustc" "rust-std" "cargo" "rust-docs" "rustfmt" "clippy" ];
+            [ "rustc" "rust-std" "cargo" "rust-docs" "rustfmt" "clippy" ]
+            ;
 
           complete =
             [
@@ -218,17 +214,20 @@ lib.makeOverridable
           stable =
             lib.mapAttrsToList
               (utils.generateToolchains { inherit root; channel = "stable"; })
-              (toolchains.stable or {});
+              (toolchains.stable or {})
+            ;
 
           beta =
             lib.mapAttrsToList
               (utils.generateToolchains { inherit root; channel = "beta"; })
-              (toolchains.beta or {});
+              (toolchains.beta or {})
+            ;
 
           nightly =
             lib.mapAttrsToList
               (utils.generateToolchains { inherit root; channel = "nightly"; })
-              (toolchains.nightly or {});
+              (toolchains.nightly or {})
+            ;
         };
 
       write-toolchain-modifications =
@@ -275,18 +274,21 @@ lib.makeOverridable
                 (concatLists (attrValues toolchains'))
               ;
 
-            installPhase = /* bash */ ''
-              mkdir -p $out/{toolchains,update-hashes}
+            installPhase =
+              /* bash */
+              ''
+                mkdir -p $out/{toolchains,update-hashes}
 
-              ${concatStringsSep "\n" write-toolchain-modifications}
+                ${concatStringsSep "\n" write-toolchain-modifications}
 
-              cat <<EOF > $out/settings.toml
-                version = "12"
-                ${default-toolchain}
+                cat <<EOF > $out/settings.toml
+                  version = "12"
+                  ${default-toolchain}
 
-                [overrides]
-              EOF
-            '';
+                  [overrides]
+                EOF
+              ''
+              ;
 
 
             passthru =
@@ -298,10 +300,13 @@ lib.makeOverridable
                   ''
                   ;
 
+                tests = callPackageSet ./tests {};
+
                 applyWrapper =
                   lib.extendMkDerivation
                     {
-                      constructDrv = symlinkJoin;
+                      # constructDrv = symlinkJoin;
+                      constructDrv = stdenvNoCC.mkDerivation;
                       excludeDrvArgNames = [ "rustup" ];
                       extendDrvArgs =
                         finalAttrs:
@@ -309,13 +314,16 @@ lib.makeOverridable
                         {
                           name = "rustup-env-wrapper";
 
-                          paths = [ rustup.outPath ];
-                          buildInputs = [ rustup ];
+                          propagatedBuildInputs = [ rustup ];
                           nativeBuildInputs = [ makeBinaryWrapper ];
 
-                          postBuild =
+                          unpackPhase = /* bash */ "true";
+
+                          installPhase =
                             /* bash */
                             ''
+                              cp -r --no-preserve=mode,ownership "${rustup}" "$out"
+                              chmod +x $out/bin/*
                               wrapProgram $out/bin/rustup \
                                 --set RUSTUP_HOME "${self.finalPackage}" \
                                 --set RUSTUP_AUTO_INSTALL "0"
@@ -325,7 +333,9 @@ lib.makeOverridable
                           passthru =
                             passthru
                           //
-                            { unwrapped = rustup; }
+                            {
+                              unwrapped = rustup;
+                            }
                             ;
                         }
                         ;
@@ -333,11 +343,6 @@ lib.makeOverridable
                     ;
 
                 toolchains = toolchains';
-
-                # tests.rustup-build-with-env =
-                #   { rustup, ... }:
-                #   rustup.overrideAttrs
-                #     {};
               }
               ;
           }

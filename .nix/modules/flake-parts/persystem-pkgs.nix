@@ -7,6 +7,7 @@
         (
           final: prev:
           {
+            callPackageSet = mlib.callPackageSetWith final;
             callPackageFunction = mlib.callPackageFunctionWith final;
             rust-overlay = inputs.rust-overlay.outputs;
             mkRustBin = final.rust-overlay.lib.mkRustBin {} final;
